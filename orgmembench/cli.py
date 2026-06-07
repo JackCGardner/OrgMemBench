@@ -38,6 +38,8 @@ def main(argv: list[str] | None = None) -> int:
     pr = sub.add_parser("run", help="Run a system on a tier.")
     pr.add_argument("--system", required=True); pr.add_argument("--tier", required=True)
     pr.add_argument("--company", default="helix"); pr.add_argument("--limit", type=int, default=None)
+    pr.add_argument("--parallel", type=int, default=1,
+                    help="Number of questions to process concurrently after ingest. Default: 1.")
     pr.add_argument("--execute", action="store_true",
                     help="Actually run (token spend; needs keys/services). Default: dry-run.")
 
@@ -80,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.execute:
             os.environ["ORGMEMBENCH_DRY_RUN"] = "0"
         from .runner import run_system
-        run = run_system(args.system, args.tier, args.company, limit=args.limit)
+        run = run_system(args.system, args.tier, args.company, limit=args.limit, parallel=args.parallel)
         print(json.dumps(run.metrics, indent=2))
         return 0
 

@@ -11,7 +11,9 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import yaml
@@ -78,6 +80,7 @@ def run_system(
     config: dict | None = None,
     limit: int | None = None,
     resume: bool = True,
+    parallel: int = 1,
 ) -> RunResult:
     dry = dry_run()
     partial, final = _result_paths(system, tier, company)
@@ -128,37 +131,83 @@ def run_system(
     )
 
     done_q, done_j = _load_checkpoint(partial) if (resume and not dry) else ({}, {})
-    llm = None if dry else AnthropicLLM()
+    completed: dict[str, tuple[QueryResult, JudgeResult]] = {
+        qid: (qr, done_j[qid])
+        for qid, qr in done_q.items()
+        if qid in done_j
+    }
+    pending = [q for q in questions if q.id not in completed]
+    max_workers = max(1, int(parallel or 1))
+    worker_state = threading.local()
+
+    def worker_llm() -> AnthropicLLM | None:
+        if dry:
+            return None
+        if not hasattr(worker_state, "llm"):
+            worker_state.llm = AnthropicLLM()
+        return worker_state.llm
+
+    def process_one(q) -> tuple[QueryResult, JudgeResult]:
+        llm = worker_llm()
+        qr = adapter.query(q, as_of=_derive_as_of(q))
+        # Answerer stage. Systems that ship their own prose answer
+        # (e.g. gbrain `think`) set self_answers and already filled
+        # answer_text. Everyone else (retrieval-only) gets the neutral
+        # basic answerer over what they retrieved.
+        if not dry and not adapter.self_answers:
+            from .answerer import basic_answer
+            resp = basic_answer(q.text, qr.retrieved_context, llm)
+            qr.answer_text = resp.text.strip() or "No answer produced."
+            qr.answer_source = "basic-answerer"
+            qr.input_tokens = resp.input_tokens
+            qr.output_tokens = resp.output_tokens
+            qr.cost_usd += resp.cost_usd
+        jr = judge_one(q, qr, llm)
+        return qr, jr
+
+    def record_checkpoint(cp, qr: QueryResult, jr: JudgeResult) -> None:
+        if cp is None:
+            return
+        cp.write(json.dumps({"query": qr.model_dump(), "judge": jr.model_dump()},
+                            default=str) + "\n")
+        cp.flush()
 
     # Only touch the checkpoint file for real runs (dry-run leaves no scratch).
-    cp = partial.open("a", encoding="utf-8") if not dry else None
+    cp_mode = "a" if resume else "w"
+    cp = partial.open(cp_mode, encoding="utf-8") if not dry else None
     try:
-        for q in questions:
-            if q.id in done_q and q.id in done_j:
-                run.queries.append(done_q[q.id]); run.judgements.append(done_j[q.id])
-                continue
-            qr = adapter.query(q, as_of=_derive_as_of(q))
-            # Answerer stage. Systems that ship their own prose answer
-            # (e.g. gbrain `think`) set self_answers and already filled
-            # answer_text. Everyone else (retrieval-only) gets the neutral
-            # basic answerer over what they retrieved.
-            if not dry and not adapter.self_answers:
-                from .answerer import basic_answer
-                resp = basic_answer(q.text, qr.retrieved_context, llm)
-                qr.answer_text = resp.text.strip() or "No answer produced."
-                qr.answer_source = "basic-answerer"
-                qr.input_tokens = resp.input_tokens
-                qr.output_tokens = resp.output_tokens
-                qr.cost_usd += resp.cost_usd
-            jr = judge_one(q, qr, llm)
-            run.queries.append(qr); run.judgements.append(jr)
-            if cp is not None:  # checkpoint real work only
-                cp.write(json.dumps({"query": qr.model_dump(), "judge": jr.model_dump()},
-                                    default=str) + "\n")
-                cp.flush()
+        if max_workers == 1 or len(pending) <= 1:
+            for q in pending:
+                qr, jr = process_one(q)
+                completed[q.id] = (qr, jr)
+                record_checkpoint(cp, qr, jr)
+        else:
+            logger.info(
+                "Run %s/%s: processing %d pending question(s) with parallel=%d",
+                system, tier, len(pending), max_workers,
+            )
+            pool = ThreadPoolExecutor(max_workers=max_workers)
+            try:
+                futures = {pool.submit(process_one, q): q for q in pending}
+                for fut in as_completed(futures):
+                    q = futures[fut]
+                    qr, jr = fut.result()
+                    completed[q.id] = (qr, jr)
+                    record_checkpoint(cp, qr, jr)
+            finally:
+                # If a worker raised, cancel questions that haven't started yet so a
+                # failed parallel run stops spending tokens on results we'd discard.
+                # No-op on the happy path: every future is already done by here.
+                pool.shutdown(wait=True, cancel_futures=True)
     finally:
         if cp is not None:
             cp.close()
+
+    for q in questions:
+        if q.id in completed:
+            qr, jr = completed[q.id]
+            run.queries.append(qr)
+            run.judgements.append(jr)
 
     run.metrics = compute_metrics(run, questions)
     # Actuals metering (tokens / native units / vs-estimate), for post-run review.

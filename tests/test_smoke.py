@@ -95,6 +95,17 @@ def test_runner_end_to_end_dry_run():
     print(f"  runner dry-run metrics: acc={run.metrics['accuracy_mean']} v={run.system_version}")
 
 
+def test_runner_parallel_dry_run_preserves_question_order():
+    """Parallel question execution returns final results in benchmark order."""
+    os.environ["ORGMEMBENCH_DRY_RUN"] = "1"
+    from orgmembench.runner import run_system
+    run = run_system("reference", "small", limit=8, parallel=4)
+    assert [qr.question_id for qr in run.queries] == [f"Q-{i:04d}" for i in range(1, 9)]
+    assert [jr.question_id for jr in run.judgements] == [f"Q-{i:04d}" for i in range(1, 9)]
+    assert all(qr.dry_run for qr in run.queries)
+    assert all(jr.judged_dry_run for jr in run.judgements)
+
+
 def test_leaderboard_renders():
     from orgmembench.leaderboard import build_leaderboard
     md = build_leaderboard()
@@ -112,7 +123,8 @@ if __name__ == "__main__":
     os.environ.setdefault("ORGMEMBENCH_DRY_RUN", "1")
     for fn in [test_corpus_loads_and_normalizes, test_questions_load,
                test_reference_adapter_dry_run_and_live, test_metrics_rollup,
-               test_runner_end_to_end_dry_run, test_leaderboard_renders,
+               test_runner_end_to_end_dry_run, test_runner_parallel_dry_run_preserves_question_order,
+               test_leaderboard_renders,
                test_orchestration_imports]:
         print(f"\n=== {fn.__name__} ===")
         fn()
