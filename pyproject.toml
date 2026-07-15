@@ -26,7 +26,7 @@ dependencies = [
 # config/gbrain.yaml for the pinned commit).
 mem0 = ["mem0ai==2.0.2", "fastembed"]          # OSS + Platform (same SDK); fastembed enables mem0's hybrid BM25+vector (its recommended config)
 graphiti = ["graphiti-core[anthropic]==0.29.1"]  # Zep's OSS temporal-graph engine (self-hosted)
-zep-cloud = ["zep-cloud==3.22.0"]              # Zep Cloud (hosted)
+zep-cloud = ["zep-cloud==3.24.0"]              # Zep Cloud (hosted)
 dev = ["pytest>=8", "ruff>=0.6"]
 all = ["orgmembench[mem0,graphiti,zep-cloud,dev]"]
 
