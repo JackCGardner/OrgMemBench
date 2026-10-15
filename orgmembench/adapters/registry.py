@@ -33,6 +33,7 @@ def _try_register(name: str, module: str, cls: str) -> None:
 
 
 # Defensive registration (no-op until each module exists).
+_try_register("mempp", "mempp_adapter", "MemppAdapter")
 _try_register("mem0", "mem0_adapter", "Mem0Adapter")
 _try_register("mem0-platform", "mem0_platform_adapter", "Mem0PlatformAdapter")
 _try_register("graphiti", "graphiti_adapter", "GraphitiAdapter")

@@ -1,0 +1,7 @@
+# Mem++ core pinned by commit; the optional engine needs Python 3.13+.
+version: "0.1.0+git.9a04af72d949a486e71aa7094150ae1a537ab0fe"
+commit: "9a04af72d949a486e71aa7094150ae1a537ab0fe"
+retrieval_top_k: 50
+# A fresh UUID is required through MEMPP_ORGMEMBENCH_RUN_ID for live runs.
+# PostgreSQL DSN and retrieval profile are environment variables; see docker/mempp.md.
+# Same run UUID + scope resumes history; new UUID separates independent runs.

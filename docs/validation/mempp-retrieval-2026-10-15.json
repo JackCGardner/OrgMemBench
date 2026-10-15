@@ -1,0 +1,50 @@
+{
+  "result": "passed",
+  "purpose": "Real local retrieval integration validation; not answer accuracy, official scored run, or reproduction of paper scores",
+  "upstream_base_commit": "f17fc92128c560de5c5db0bf982c33845dd98c58",
+  "harness_commit": "f17fc92128c560de5c5db0bf982c33845dd98c58",
+  "adapter_sha256": "222c09fd48edefb769891b8a1d31fec0e305d591ac079143071e5b0a401767d6",
+  "engine_version": "0.1.0+git.9a04af72d949a486e71aa7094150ae1a537ab0fe",
+  "database": "dedicated PostgreSQL17+pgvector UTF8 migration0003",
+  "embedding": "real local ONNX all-MiniLM-L6-v2 384d",
+  "retrieval_profile": {
+    "k": 50,
+    "weights": [
+      1,
+      1,
+      4
+    ],
+    "candidate_limit": 50,
+    "lexical_or": false
+  },
+  "tiers": [
+    {
+      "tier": "small",
+      "artifacts": 126,
+      "questions": 11,
+      "normalized_corpus_sha256": "1b11e2dbad4d69ac0a4a054205be4bf84a0c7fd03c33d30241d7fc1c027dff9f",
+      "ingestion_seconds": 6.765461375005543,
+      "embedding_count": 126,
+      "unique_slot_ids": 120,
+      "idempotent_reuse_verified": true
+    },
+    {
+      "tier": "medium",
+      "artifacts": 443,
+      "questions": 73,
+      "normalized_corpus_sha256": "c1e132f674043ceac20a182371a257e8c96e6813e925e354cff28fcca415f433",
+      "ingestion_seconds": 21.170993083971553,
+      "embedding_count": 443,
+      "unique_slot_ids": 443,
+      "idempotent_reuse_verified": true
+    }
+  ],
+  "retrieved_record_appearances_checked": 4183,
+  "date_bounded_appearances_checked": 783,
+  "foreign_scope_records": 0,
+  "temporal_bound_violations": 0,
+  "source_id_mismatches": 0,
+  "paid_model_calls": 0,
+  "elapsed_seconds": 34.73755858291406,
+  "run_id": "de087525-8294-4f56-b304-3c052d528573"
+}
